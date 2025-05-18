@@ -64,7 +64,7 @@ def home():
 if __name__ == "__main__":
     import asyncio
     PORT = int(os.environ.get("PORT", 5000))
-    WEBHOOK_URL = f"https://your-app-name.onrender.com/{BOT_TOKEN}"  # <-- CHANGE THIS
+    WEBHOOK_URL = f"https://movie-downloader-21cp.onrender.com"  # <-- CHANGE THIS
 
     async def main():
         await application.bot.set_webhook(WEBHOOK_URL)
