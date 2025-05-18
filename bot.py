@@ -4,18 +4,18 @@ from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# ENV variables
+# Environment Variables থেকে নিচ্ছি
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SHORTENER_API_BASE_URL = os.getenv("SHORTENER_API_BASE_URL")
-SHORTENER_API_KEY = os.getenv("SHORTENER_API_KEY")
+SHORTENER_API_BASE_URL = os.getenv("SHORTENER_API_BASE_URL")  # যেমন: https://api.shortener.com
+SHORTENER_API_KEY = os.getenv("SHORTENER_API_KEY")            # আপনার API key
 
-# Flask app
+# Flask অ্যাপ
 flask_app = Flask(__name__)
 
-# Telegram app
+# Telegram বট অ্যাপ্লিকেশন
 application = Application.builder().token(BOT_TOKEN).build()
 
-# Shortener function
+# লিংক শর্টেন করার ফাংশন
 def shorten_link(original_url):
     try:
         api_url = f"{SHORTENER_API_BASE_URL}/{SHORTENER_API_KEY}?s={original_url}"
@@ -24,7 +24,7 @@ def shorten_link(original_url):
     except Exception as e:
         return f"Error shortening link: {e}"
 
-# Command handlers
+# /start কমান্ড হ্যান্ডলার
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Movie Bot এ স্বাগতম!\n\n"
@@ -32,9 +32,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔥 /latest – নতুন মুভি দেখুন"
     )
 
+# /latest কমান্ড হ্যান্ডলার
 async def latest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     movie_name = "The Beekeeper (2024)"
-    movie_url = "https://samplemoviesite.com/beekeeper"
+    movie_url = "https://samplemoviesite.com/beekeeper"  # আসল মুভি URL এখানে বসাবেন
     short_url = shorten_link(movie_url)
 
     buttons = [[InlineKeyboardButton("⬇️ Download Now", url=short_url)]]
@@ -44,11 +45,11 @@ async def latest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-# Add handlers
+# হ্যান্ডলারগুলো অ্যাড করা হচ্ছে
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("latest", latest))
 
-# Flask route for webhook
+# Telegram webhook route
 @flask_app.post(f"/{BOT_TOKEN}")
 async def webhook():
     data = request.get_json(force=True)
@@ -56,15 +57,16 @@ async def webhook():
     await application.process_update(update)
     return "ok"
 
+# হোম পেজ
 @flask_app.route("/")
 def home():
     return "Movie Bot is Running"
 
-# Main runner
+# রানার ফাংশন
 if __name__ == "__main__":
     import asyncio
     PORT = int(os.environ.get("PORT", 5000))
-    WEBHOOK_URL = f"https://movie-downloader-21cp.onrender.com/{BOT_TOKEN}" # <-- CHANGE THIS
+    WEBHOOK_URL = f"https://movie-downloader-21cp.onrender.com/{BOT_TOKEN}"  # আপনার Render URL ও টোকেন অনুযায়ী পরিবর্তন করুন
 
     async def main():
         await application.bot.set_webhook(WEBHOOK_URL)
