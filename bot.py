@@ -1,98 +1,68 @@
-import os
-import logging
-import requests
-from bs4 import BeautifulSoup
 from flask import Flask, request
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Dispatcher, CommandHandler
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
-if not BOT_TOKEN or not WEBHOOK_URL:
-    raise Exception("BOT_TOKEN or WEBHOOK_URL env variable missing!")
+import requests
+import os
 
 app = Flask(__name__)
-bot = Bot(token=BOT_TOKEN)
-dispatcher = Dispatcher(bot, None, workers=0)
 
-SEARCH_SITES = [
-    "https://1337x.to/search/{query}/1/",
-    "https://yts.mx/browse-movies/{query}/all/all/0/latest",
-    "https://fmovies.to/search/{query}",
-]
+BOT_TOKEN = "8124429702:AAGN2Wk9_R3F_tgArbgsJRj5M3u4HRjs6nE"
+API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-def scrape_site(url):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200:
-            return []
-        soup = BeautifulSoup(r.text, "html.parser")
-        results = []
-        for a in soup.find_all("a", href=True):
-            href = a['href']
-            text = a.get_text(strip=True) or "Link"
-            if "download" in href.lower() or "watch" in href.lower() or "torrent" in href.lower():
-                results.append((text, href))
-        return results[:5]
-    except Exception as e:
-        logger.error(f"Error scraping {url}: {e}")
-        return []
+# একটা সিম্পল মুভি ডাটাবেস (তুমি চাইলে এক্সটেনশন দিবে)
+MOVIE_DB = {
+    "inception": {
+        "watch": "https://example.com/inception/watch",
+        "download": "https://example.com/inception/download"
+    },
+    "interstellar": {
+        "watch": "https://example.com/interstellar/watch",
+        "download": "https://example.com/interstellar/download"
+    },
+    "avengers": {
+        "watch": "https://example.com/avengers/watch",
+        "download": "https://example.com/avengers/download"
+    }
+}
 
-def start(update, context):
-    update.message.reply_text(
-        "Hi! Use /search followed by movie name to get download/watch links.\nExample: /search Joker"
-    )
-
-def search(update, context):
-    if not context.args:
-        update.message.reply_text("Please provide a movie name.\nUsage: /search Joker")
-        return
-
-    query = " ".join(context.args)
-    update.message.reply_text(f"Searching links for '{query}'...")
-
-    all_links = []
-    for site in SEARCH_SITES:
-        url = site.format(query=query.replace(" ", "+"))
-        all_links.extend(scrape_site(url))
-
-    if not all_links:
-        update.message.reply_text("No download or watch links found for this movie.")
-        return
-
-    buttons = [[InlineKeyboardButton(text, url=link)] for text, link in all_links]
-
-    update.message.reply_text(
-        "Here are the download/watch links:",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
-
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("search", search))
+def send_message(chat_id, text, reply_markup=None):
+    data = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    if reply_markup:
+        data["reply_markup"] = reply_markup
+    requests.post(f"{API_URL}/sendMessage", json=data)
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "OK"
+    update = request.get_json()
+
+    if "message" in update:
+        message = update["message"]
+        chat_id = message["chat"]["id"]
+        text = message.get("text", "").lower().strip()
+
+        # মুভির নাম যদি ডাটাবেসে থাকে
+        if text in MOVIE_DB:
+            movie = MOVIE_DB[text]
+            buttons = {
+                "inline_keyboard": [
+                    [
+                        {"text": "Watch", "url": movie["watch"]},
+                        {"text": "Download", "url": movie["download"]}
+                    ]
+                ]
+            }
+            send_message(chat_id, f"<b>{text.title()}</b> মুভির লিংক নিচে:", reply_markup=buttons)
+        else:
+            send_message(chat_id, "দুঃখিত, আমাদের ডাটাবেসে এই মুভির তথ্য নেই। অনুগ্রহ করে অন্য মুভির নাম চেষ্টা করুন।")
+
+    return "ok"
 
 @app.route("/")
 def index():
-    return "Bot is alive and running."
-
-def set_webhook():
-    status = bot.set_webhook(WEBHOOK_URL)
-    if status:
-        logger.info(f"Webhook set successfully to {WEBHOOK_URL}")
-    else:
-        logger.error("Failed to set webhook")
+    return "Bot is running!"
 
 if __name__ == "__main__":
-    set_webhook()
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
