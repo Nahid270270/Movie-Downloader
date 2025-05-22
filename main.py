@@ -1,47 +1,40 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message
 import asyncio
-import os
 
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-SESSION = os.environ.get("SESSION_STRING")
-SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL")  # just "channelusername" (no @)
-AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", 300))
+API_ID = 123456  # তোমার api_id
+API_HASH = "your_api_hash"
+BOT_TOKEN = "your_bot_token"
+SESSION_STRING = "your_user_session"
+SOURCE_CHANNEL = -100xxxxxxxxxx  # চ্যানেল ID
 
-bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-user = Client("user", api_id=API_ID, api_hash=API_HASH, session_string=SESSION)
+bot = Client("movie-bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
+user = Client("user", session_string=SESSION_STRING, api_id=API_ID, api_hash=API_HASH)
 
 
 @bot.on_message(filters.private | filters.group & filters.text)
-async def search_movie(bot_client, message: Message):
-    query = message.text
-
-    await message.reply_text("Searching...", quote=True)
+async def search_movie(client, message):
+    query = message.text.strip()
     results = []
-
-    async with user:
-        async for msg in user.search_messages(SOURCE_CHANNEL, query, limit=5):
-            results.append(msg)
+    async for msg in user.search_messages(SOURCE_CHANNEL, query, limit=5):
+        results.append(msg)
 
     if not results:
-        return await message.reply_text("No results found.")
+        await message.reply("কোনও কিছু পাওয়া যায়নি।")
+        return
 
     for msg in results:
         sent = await msg.copy(chat_id=message.chat.id)
-        await asyncio.sleep(2)
-        await asyncio.create_task(auto_delete(sent))
+        await asyncio.sleep(300)
+        await sent.delete()
 
 
-async def auto_delete(msg: Message):
-    await asyncio.sleep(AUTO_DELETE_TIME)
-    try:
-        await msg.delete()
-    except:
-        pass
+async def main():
+    await user.start()
+    await bot.start()
+    print("Bot is running...")
+    await idle()
+    await bot.stop()
+    await user.stop()
 
-
-if __name__ == "__main__":
-    user.start()  # start user client first
-    bot.run()
+from pyrogram.idle import idle
+asyncio.run(main())
