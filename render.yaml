@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: telegram-movie-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: API_ID
+        value: your_api_id
+      - key: API_HASH
+        value: your_api_hash
+      - key: SESSION_STRING
+        value: your_session_string
+      - key: SOURCE_CHANNEL
+        value: your_channel_username_or_id
