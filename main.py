@@ -8,7 +8,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHANNEL = -1001234567890  # তোমার চ্যানেল ID
+SOURCE_CHANNEL = -1002653036072  # তোমার চ্যানেল ID
 
 # Clients
 bot = Client("movie-bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
