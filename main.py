@@ -5,31 +5,43 @@ import os
 
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
-SESSION_STRING = os.environ.get("SESSION_STRING")
-SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL")  # username or ID (without @)
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+SESSION = os.environ.get("SESSION_STRING")
+SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL")  # just "channelusername" (no @)
+AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", 300))
 
-app = Client(name="movie-userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
+bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+user = Client("user", api_id=API_ID, api_hash=API_HASH, session_string=SESSION)
 
 
-@app.on_message((filters.private | filters.group) & filters.text)
-async def search_movie(client: Client, message: Message):
+@bot.on_message(filters.private | filters.group & filters.text)
+async def search_movie(bot_client, message: Message):
     query = message.text
+
+    await message.reply_text("Searching...", quote=True)
     results = []
-    async for msg in client.search_messages(SOURCE_CHANNEL, query, limit=5):
-        if msg.video or msg.document:
+
+    async with user:
+        async for msg in user.search_messages(SOURCE_CHANNEL, query, limit=5):
             results.append(msg)
 
     if not results:
-        await message.reply("দুঃখিত, কিছুই পাইনি। সঠিক নাম দিন।")
-        return
+        return await message.reply_text("No results found.")
 
-    for result in results:
-        sent = await result.copy(chat_id=message.chat.id, reply_to_message_id=message.id)
-        await asyncio.sleep(300)  # ৫ মিনিট
-        try:
-            await sent.delete()
-        except:
-            pass
+    for msg in results:
+        sent = await msg.copy(chat_id=message.chat.id)
+        await asyncio.sleep(2)
+        await asyncio.create_task(auto_delete(sent))
 
 
-app.run()
+async def auto_delete(msg: Message):
+    await asyncio.sleep(AUTO_DELETE_TIME)
+    try:
+        await msg.delete()
+    except:
+        pass
+
+
+if __name__ == "__main__":
+    user.start()  # start user client first
+    bot.run()
