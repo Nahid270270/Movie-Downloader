@@ -1,59 +1,52 @@
 import asyncio
 from pyrogram import Client, filters
+from pyrogram.errors import PeerIdInvalid
 from pyrogram.types import Message
-import os
 
-# ENV variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHANNEL = -1002653036072  # তোমার চ্যানেল ID
+# তোমার Telegram API credentials (https://my.telegram.org)
+API_ID = 1234567  # তোমার API ID
+API_HASH = "your_api_hash_here"  # তোমার API HASH
 
-# Clients
-bot = Client("movie-bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
-user = Client("user-session", session_string=SESSION_STRING, api_id=API_ID, api_hash=API_HASH)
+# ইউজার সেশন স্ট্রিং (Pyrogram user session string)
+SESSION_STRING = "your_user_session_string_here"
 
-# Search Handler
-@bot.on_message(filters.private | filters.group & filters.text)
-async def search_movie(bot: Client, message: Message):
+# সার্চ করার জন্য চ্যানেল আইডি (ইনটিজার ফরম্যাটে, -100 দিয়ে শুরু করতে হবে)
+SOURCE_CHANNEL = -1002653036072  # তোমার প্রাইভেট চ্যানেল আইডি
+
+# Auto delete time in seconds
+AUTO_DELETE_TIME = 300  # ৫ মিনিট
+
+app = Client(session_name=SESSION_STRING, api_id=API_ID, api_hash=API_HASH)
+
+
+@app.on_message(filters.private | filters.group & filters.text)
+async def search_movie(client: Client, message: Message):
     query = message.text.strip()
     if not query:
-        return await message.reply("দয়া করে একটি সিনেমার নাম লিখুন।")
+        return await message.reply_text("অনুগ্রহ করে মুভির নাম লিখুন।")
 
-    results = []
     try:
-        async for msg in user.search_messages(chat_id=SOURCE_CHANNEL, query=query, limit=5):
-            if msg.text or msg.caption:
-                results.append(msg)
+        results = []
+        async for msg in client.search_messages(SOURCE_CHANNEL, query=query, limit=5):
+            # মুভি নাম ও লিঙ্ক টা নিতে পারো যদি মেসেজে থাকে
+            results.append(msg)
 
         if not results:
-            return await message.reply("দুঃখিত, কিছুই পাওয়া যায়নি।")
+            await message.reply_text("কোনো মুভি পাওয়া যায়নি আপনার অনুসন্ধানে।")
+            return
 
         for msg in results:
-            sent = await msg.copy(chat_id=message.chat.id)
-            await asyncio.sleep(1)
-            await asyncio.create_task(delete_after(sent, 300))
+            sent_msg = await message.reply_text(f"🔍 পাওয়া গেছে:\n\n{msg.text or 'No text content'}")
+            # ৫ মিনিট পর মেসেজ ডিলিট করো
+            await asyncio.sleep(AUTO_DELETE_TIME)
+            await sent_msg.delete()
 
+    except PeerIdInvalid:
+        await message.reply_text("চ্যানেল আইডি সঠিক নয় বা বট/ইউজার সেই চ্যানেলটি দেখার অনুমতি পায়নি।")
     except Exception as e:
-        await message.reply(f"এরর: {e}")
+        await message.reply_text(f"ত্রুটি ঘটেছে: {e}")
 
-# Auto delete function
-async def delete_after(msg: Message, delay: int):
-    await asyncio.sleep(delay)
-    try:
-        await msg.delete()
-    except:
-        pass
 
-# Run both clients
-async def main():
-    await user.start()
-    await bot.start()
-    print("Bot is running...")
-    await idle()
-    await user.stop()
-    await bot.stop()
-
-from pyrogram.idle import idle
-asyncio.run(main())
+if __name__ == "__main__":
+    print("Bot is starting...")
+    app.run()
