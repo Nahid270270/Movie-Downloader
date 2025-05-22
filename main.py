@@ -1,56 +1,71 @@
 import os
-import cloudscraper
-from bs4 import BeautifulSoup
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from datetime import timedelta
+from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+load_dotenv()
 
-bot = Client("bdmovie_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+SOURCE_CHANNEL = os.getenv("SOURCE_CHANNEL")  # example: -1001234567890
+DELETE_TIME = 300  # 5 minutes
 
-scraper = cloudscraper.create_scraper()
-BASE_URL = "https://bdmusic99.asia"
+app = Client("movie_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+flask_app = Flask(__name__)
 
-def search_movie(movie_name):
-    search_url = f"{BASE_URL}/?s={movie_name.replace(' ', '+')}"
-    res = scraper.get(search_url, timeout=10)
-    soup = BeautifulSoup(res.text, "html.parser")
-    posts = soup.select("h2.entry-title a")
-    if not posts:
-        return None, None
-    return posts[0]['href'], posts[0].text.strip()
 
-def get_download_links(post_url):
-    res = scraper.get(post_url, timeout=10)
-    soup = BeautifulSoup(res.text, "html.parser")
-    links = []
-    for a_tag in soup.find_all("a", href=True):
-        href = a_tag['href']
-        text = a_tag.get_text(strip=True)
-        if href.startswith("http") and any(x in href for x in ["mediafire", "drive", "gdtot", "mega", "bdmusic"]):
-            links.append(f"{text} ➤ {href}")
-    return links
+@app.on_message(filters.command("start"))
+async def start_handler(client, message: Message):
+    await message.reply_text("স্বাগতম! আপনি যেকোনো মুভির নাম লিখে সার্চ করতে পারেন।")
 
-@bot.on_message(filters.command("start"))
-async def start(client, message: Message):
-    await message.reply("স্বাগতম! মুভির নাম দিন, আমি ডাউনলোড লিংক বের করে দেব। উদাহরণ: `Kabuliwala`")
 
-@bot.on_message(filters.text & ~filters.command("start"))
-async def movie_search(client, message: Message):
-    movie_name = message.text.strip()
-    await message.reply("অনুগ্রহ করে অপেক্ষা করুন...")
-    post_url, title = search_movie(movie_name)
-    if not post_url:
-        await message.reply("দুঃখিত, মুভি পাওয়া যায়নি।")
+@app.on_message(filters.command("help"))
+async def help_handler(client, message: Message):
+    await message.reply_text("এই বট দিয়ে আপনি আপনার চ্যানেল থেকে মুভি খুঁজতে পারবেন। শুধু মুভির নাম লিখুন।")
+
+
+@app.on_message(filters.text & ~filters.command(["start", "help"]))
+async def search_movie(client, message: Message):
+    query = message.text.lower()
+    results = []
+
+    async for msg in client.search_messages(SOURCE_CHANNEL, query):
+        if msg.video or msg.document or msg.text:
+            results.append(msg)
+
+    if not results:
+        sent = await message.reply_text("কোনো মুভি পাওয়া যায়নি। আবার চেষ্টা করুন।")
+        await asyncio.sleep(DELETE_TIME)
+        await sent.delete()
         return
-    links = get_download_links(post_url)
-    if not links:
-        await message.reply("ডাউনলোড লিংক পাওয়া যায়নি।")
-        return
-    text = f"**{title}** এর ডাউনলোড লিংক:\n\n" + "\n".join(links)
-    await message.reply(text, disable_web_page_preview=True)
+
+    for msg in results[:5]:
+        sent = await msg.copy(chat_id=message.chat.id)
+        await asyncio.sleep(DELETE_TIME)
+        try:
+            await sent.delete()
+        except:
+            pass
+
+
+@flask_app.route("/")
+def home():
+    return "Bot is running!"
+
+
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+
+def start_bot():
+    app.run()
+
 
 if __name__ == "__main__":
-    bot.run()
+    Thread(target=run_flask).start()
+    start_bot()
